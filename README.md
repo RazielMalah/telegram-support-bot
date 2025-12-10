@@ -21,7 +21,10 @@
 
 ### 1. Клонирование репозитория
 
-Скопируйте файлы проекта в отдельную папку.
+```bash
+git clone https://github.com/gniloeapple/telegram-Support-Bot.git
+cd telegram-support-bot
+```
 
 ### 2. Создание виртуального окружения (рекомендуется)
 
