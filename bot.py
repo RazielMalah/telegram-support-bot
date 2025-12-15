@@ -11,7 +11,21 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv('TELEGRAM_TOKEN')
-SUPPORT_CHAT_ID = int(os.getenv('SUPPORT_CHAT_ID'))
+if not TOKEN:
+    raise RuntimeError("TELEGRAM_TOKEN is not set")
+
+SUPPORT_CHAT_ID_ENV = os.getenv('SUPPORT_CHAT_ID')
+if not SUPPORT_CHAT_ID_ENV:
+    raise RuntimeError("SUPPORT_CHAT_ID is not set")
+
+SUPPORT_CHAT_ID = int(SUPPORT_CHAT_ID_ENV)
+
+SUPPORT_TOPIC_ID_ENV = os.getenv('SUPPORT_TOPIC_ID')
+
+if SUPPORT_TOPIC_ID_ENV and not SUPPORT_TOPIC_ID_ENV.isdigit():
+    raise ValueError("SUPPORT_TOPIC_ID must be integer")
+
+SUPPORT_TOPIC_ID = int(SUPPORT_TOPIC_ID_ENV) if SUPPORT_TOPIC_ID_ENV else None
 
 conn = sqlite3.connect('support_bot.db', check_same_thread=False)
 cursor = conn.cursor()
@@ -20,23 +34,30 @@ cursor.execute('''
 CREATE TABLE IF NOT EXISTS messages_mapping (
     user_chat_id INTEGER,
     user_message_id INTEGER,
+    support_chat_id INTEGER,
+    support_topic_id INTEGER,
     support_message_id INTEGER,
     PRIMARY KEY(user_chat_id, user_message_id)
 )
 ''')
 conn.commit()
 
-def save_mapping(user_chat_id, user_message_id, support_message_id):
+def save_mapping(user_chat_id, user_message_id, support_chat_id, support_topic_id, support_message_id):
     cursor.execute('''
-    INSERT OR REPLACE INTO messages_mapping (user_chat_id, user_message_id, support_message_id)
-    VALUES (?, ?, ?)
-    ''', (user_chat_id, user_message_id, support_message_id))
+    INSERT OR REPLACE INTO messages_mapping
+    (user_chat_id, user_message_id, support_chat_id, support_topic_id, support_message_id)
+    VALUES (?, ?, ?, ?, ?)
+    ''', (user_chat_id, user_message_id, support_chat_id, support_topic_id, support_message_id))
     conn.commit()
 
-def find_user_by_support_message(support_message_id):
+def find_user_by_support_message(support_chat_id, support_topic_id, support_message_id):
     cursor.execute('''
-    SELECT user_chat_id, user_message_id FROM messages_mapping WHERE support_message_id=?
-    ''', (support_message_id,))
+    SELECT user_chat_id, user_message_id
+    FROM messages_mapping
+    WHERE support_chat_id = ?
+      AND support_topic_id IS ?
+      AND support_message_id = ?
+    ''', (support_chat_id, support_topic_id, support_message_id))
     return cursor.fetchone()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -56,7 +77,7 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     header = f"📩 Сообщение от {user.first_name} (id: {user.id}):"
     sent_message = None
-    
+
     # Фото (Photo)
     if update.message.photo:
         cap = update.message.caption or ''
@@ -64,6 +85,7 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
         file_id = photos[-1].file_id  # самое большое по размеру
         sent_message = await context.bot.send_photo(
             chat_id=SUPPORT_CHAT_ID,
+            message_thread_id=SUPPORT_TOPIC_ID,
             photo=file_id,
             caption=f"{header}\n\n{cap}"
         )
@@ -72,6 +94,7 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
         cap = update.message.caption or ''
         sent_message = await context.bot.send_video(
             chat_id=SUPPORT_CHAT_ID,
+            message_thread_id=SUPPORT_TOPIC_ID,
             video=update.message.video.file_id,
             caption=f"{header}\n\n{cap}"
         )
@@ -80,6 +103,7 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
         cap = update.message.caption or ''
         sent_message = await context.bot.send_document(
             chat_id=SUPPORT_CHAT_ID,
+            message_thread_id=SUPPORT_TOPIC_ID,
             document=update.message.document.file_id,
             caption=f"{header}\n\n{cap}"
         )
@@ -87,6 +111,7 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
     elif update.message.voice:
         sent_message = await context.bot.send_voice(
             chat_id=SUPPORT_CHAT_ID,
+            message_thread_id=SUPPORT_TOPIC_ID,
             voice=update.message.voice.file_id,
             caption=header
         )
@@ -95,6 +120,7 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
         cap = update.message.caption or ''
         sent_message = await context.bot.send_audio(
             chat_id=SUPPORT_CHAT_ID,
+            message_thread_id=SUPPORT_TOPIC_ID,
             audio=update.message.audio.file_id,
             caption=f"{header}\n\n{cap}"
         )
@@ -102,6 +128,7 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
     elif update.message.text:
         sent_message = await context.bot.send_message(
             chat_id=SUPPORT_CHAT_ID,
+            message_thread_id=SUPPORT_TOPIC_ID,
             text=f"{header}\n\n{update.message.text}"
         )
     else:
@@ -109,18 +136,30 @@ async def forward_to_support(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     if sent_message:
-        save_mapping(user_chat_id, user_message_id, sent_message.message_id)
+        save_mapping(
+            user_chat_id,
+            user_message_id,
+            SUPPORT_CHAT_ID,
+            sent_message.message_thread_id,
+            sent_message.message_id
+        )
 
 async def reply_from_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
-    if message.chat_id != SUPPORT_CHAT_ID or not message.reply_to_message:
+
+    if not message.reply_to_message:
         return
 
-    replied_msg = message.reply_to_message
-    found = find_user_by_support_message(replied_msg.message_id)
+    found = find_user_by_support_message(
+        support_chat_id=message.chat_id,
+        support_topic_id=message.message_thread_id,
+        support_message_id=message.reply_to_message.message_id
+    )
+
     if not found:
         return
-    user_chat_id, user_message_id = found
+
+    user_chat_id, _ = found
 
     # Пересылка всех поддерживаемых медиа и текста обратно пользователю
     # Фото
