@@ -1,0 +1,24 @@
+services:
+  telegram-support-bot:
+    build: .
+    container_name: telegram-support-bot
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    volumes:
+      - ./data:/app/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f bot.py >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
