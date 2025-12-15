@@ -21,7 +21,7 @@
 ## Быстрый старт
 
 ```bash
-git clone https://github.com/your-org/telegram-support-bot.git
+git clone https://github.com/RazielMalah/telegram-support-bot.git
 cd telegram-support-bot
 
 cp .env.example .env
