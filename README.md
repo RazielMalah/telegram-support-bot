@@ -4,7 +4,7 @@
 > Бот принимает сообщения пользователей (текст, фото, видео, аудио, документы, голосовые) и пересылает их в чат поддержки.
 > Операторы отвечают на сообщения прямо в общем чате, используя функцию Reply, а бот автоматически перенаправляет ответ пользователю.
 
-*Это мой первый публичный репозиторий, поэтому не ругайте строго ✨*
+*Это форк https://github.com/gniloeapple/telegram-support-bot, поэтому не ругайте строго ✨*
 
 ---
 
@@ -43,7 +43,7 @@
 ### 1. Клонирование репозитория
 
 ```bash
-git clone https://github.com/gniloeapple/telegram-support-bot.git
+git clone https://github.com/RazielMalah/telegram-support-bot.git
 cd telegram-support-bot
 
 cp .env.example .env
