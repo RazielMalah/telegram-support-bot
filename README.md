@@ -75,25 +75,17 @@ ADMINS=123456789,987654321                  # ID администраторов 
 
 * **ADMINS**: Ваш цифровой ID в Telegram.
 
-### 2. Установка зависимостей
-
-Рекомендуется использовать виртуальное окружение:
+### 2. Запуск контейнера
 
 ```bash
-python -m venv venv
-# Активация для Windows:
-venv\Scripts\activate
-# Активация для Linux/macOS:
-source venv/bin/activate
-
-pip install -r requirements.txt
+docker compose up -d 
 
 ```
 
-### 3. Запуск бота
+### 3. Просмотр логов
 
 ```bash
-python bot.py
+docker logs support_bot -f
 
 ```
 
